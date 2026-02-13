@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>買い物</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Lucide Iconsの代替としてSVGアイコンを使用
+        const ShoppingCart = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+            </svg>
+        );
+
+        const Plus = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        );
+
+        const Trash2 = ({ size = 24 }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+        );
+
+        const TrendingDown = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
+                <polyline points="17 18 23 18 23 12"></polyline>
+            </svg>
+        );
+
+        function ShoppingApp() {
+            const [items, setItems] = useState([]);
+            const [currentItem, setCurrentItem] = useState({
+                name: '',
+                stores: []
+            });
+            const [storeName, setStoreName] = useState('');
+            const [storePrice, setStorePrice] = useState('');
+            const [storeUrl, setStoreUrl] = useState('');
+
+            // アプリ起動時にデータを読み込む
+            useEffect(() => {
+                const savedData = localStorage.getItem('shopping-items');
+                if (savedData) {
+                    try {
+                        setItems(JSON.parse(savedData));
+                    } catch (error) {
+                        console.log('データ読み込みエラー');
+                    }
+                }
+            }, []);
+
+            // データが変更されたら自動保存
+            useEffect(() => {
+                if (items.length > 0) {
+                    localStorage.setItem('shopping-items', JSON.stringify(items));
+                }
+            }, [items]);
+
+            const addStore = () => {
+                if (storeName && storePrice) {
+                    setCurrentItem({
+                        ...currentItem,
+                        stores: [...currentItem.stores, { 
+                            name: storeName, 
+                            price: parseFloat(storePrice),
+                            url: storeUrl 
+                        }]
+                    });
+                    setStoreName('');
+                    setStorePrice('');
+                    setStoreUrl('');
+                }
+            };
+
+            const removeStore = (index) => {
+                const newStores = currentItem.stores.filter((_, i) => i !== index);
+                setCurrentItem({ ...currentItem, stores: newStores });
+            };
+
+            const saveItem = () => {
+                if (currentItem.name && currentItem.stores.length > 0) {
+                    setItems([...items, currentItem]);
+                    setCurrentItem({ name: '', stores: [] });
+                }
+            };
+
+            const deleteItem = (index) => {
+                setItems(items.filter((_, i) => i !== index));
+            };
+
+            const clearAllData = () => {
+                if (window.confirm('すべてのデータを削除してもよろしいですか?')) {
+                    localStorage.removeItem('shopping-items');
+                    setItems([]);
+                    alert('すべてのデータを削除しました');
+                }
+            };
+
+            const getCheapestStore = (stores) => {
+                return stores.reduce((min, store) => 
+                    store.price < min.price ? store : min
+                , stores[0]);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+                    <div className="max-w-4xl mx-auto">
+                        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-3">
+                                    <ShoppingCart size={32} className="text-indigo-600" />
+                                    <h1 className="text-3xl font-bold text-gray-800">買い物</h1>
+                                </div>
+                                {items.length > 0 && (
+                                    <button
+                                        onClick={clearAllData}
+                                        className="text-sm text-red-600 hover:text-red-800 underline"
+                                    >
+                                        全削除
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        商品名
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={currentItem.name}
+                                        onChange={(e) => setCurrentItem({ ...currentItem, name: e.target.value })}
+                                        placeholder="例: トイレットペーパー 12ロール"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            店舗名
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={storeName}
+                                            onChange={(e) => setStoreName(e.target.value)}
+                                            placeholder="例: スーパーA"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            税込価格(円)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={storePrice}
+                                            onChange={(e) => setStorePrice(e.target.value)}
+                                            placeholder="498"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        店舗の位置URL(任意)
+                                    </label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="url"
+                                            value={storeUrl}
+                                            onChange={(e) => setStoreUrl(e.target.value)}
+                                            placeholder="GoogleマップのURLを貼り付け"
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        />
+                                        <button
+                                            onClick={addStore}
+                                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                                        >
+                                            <Plus size={20} />
+                                            追加
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {currentItem.stores.length > 0 && (
+                                    <div className="bg-gray-50 rounded-lg p-4">
+                                        <h3 className="font-medium text-gray-700 mb-3">登録済み店舗</h3>
+                                        <div className="space-y-2">
+                                            {currentItem.stores.map((store, index) => (
+                                                <div key={index} className="flex items-center justify-between bg-white p-3 rounded">
+                                                    <div className="flex-1">
+                                                        {store.url ? (
+                                                            <a 
+                                                                href={store.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="font-medium text-indigo-600 hover:text-indigo-800 underline"
+                                                            >
+                                                                {store.name}
+                                                            </a>
+                                                        ) : (
+                                                            <span className="font-medium">{store.name}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-lg font-bold text-indigo-600">¥{store.price.toLocaleString()}</span>
+                                                        <button
+                                                            onClick={() => removeStore(index)}
+                                                            className="text-red-500 hover:text-red-700"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={saveItem}
+                                    disabled={!currentItem.name || currentItem.stores.length === 0}
+                                    className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                                >
+                                    商品を保存
+                                </button>
+                            </div>
+                        </div>
+
+                        {items.length > 0 && (
+                            <div className="space-y-4">
+                                <h2 className="text-2xl font-bold text-gray-800 mb-4">保存済み商品</h2>
+                                {items.map((item, itemIndex) => {
+                                    const cheapest = getCheapestStore(item.stores);
+                                    return (
+                                        <div key={itemIndex} className="bg-white rounded-lg shadow-lg p-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-xl font-bold text-gray-800">{item.name}</h3>
+                                                <button
+                                                    onClick={() => deleteItem(itemIndex)}
+                                                    className="text-red-500 hover:text-red-700"
+                                                >
+                                                    <Trash2 size={20} />
+                                                </button>
+                                            </div>
+                                            <div className="space-y-2">
+                                                {item.stores
+                                                    .sort((a, b) => a.price - b.price)
+                                                    .map((store, storeIndex) => (
+                                                        <div
+                                                            key={storeIndex}
+                                                            className={`flex items-center justify-between p-4 rounded-lg transition-all ${
+                                                                store.name === cheapest.name
+                                                                    ? 'bg-green-50 border-2 border-green-500'
+                                                                    : 'bg-gray-50'
+                                                            }`}
+                                                        >
+                                                            <div className="flex items-center gap-3 flex-1">
+                                                                {store.name === cheapest.name && (
+                                                                    <TrendingDown size={24} className="text-green-600" />
+                                                                )}
+                                                                {store.url ? (
+                                                                    <a 
+                                                                        href={store.url} 
+                                                                        target="_blank" 
+                                                                        rel="noopener noreferrer"
+                                                                        className={`font-medium hover:underline ${
+                                                                            store.name === cheapest.name ? 'text-green-700' : 'text-indigo-700'
+                                                                        }`}
+                                                                    >
+                                                                        {store.name}
+                                                                    </a>
+                                                                ) : (
+                                                                    <span className={`font-medium ${
+                                                                        store.name === cheapest.name ? 'text-green-700' : 'text-gray-700'
+                                                                    }`}>
+                                                                        {store.name}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <div className={`text-2xl font-bold ${
+                                                                    store.name === cheapest.name ? 'text-green-600' : 'text-gray-800'
+                                                                }`}>
+                                                                    ¥{store.price.toLocaleString()}
+                                                                </div>
+                                                                {store.name === cheapest.name && (
+                                                                    <span className="text-sm text-green-600 font-medium">最安値!</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<ShoppingApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
