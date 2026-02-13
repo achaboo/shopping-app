@@ -6,10 +6,16 @@
     <title>買い物</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234F46E5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='9' cy='21' r='1'/><circle cx='20' cy='21' r='1'/><path d='M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'/></svg>">
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
     <style>
         body {
             margin: 0;
@@ -21,10 +27,26 @@
 <body>
     <div id="root"></div>
 
+    <script>
+        // Firebase設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyBy1ARbcH4Eq8cg7t_8q-Gk0OEx0TBykCc",
+            authDomain: "shopping-app-3ecb4.firebaseapp.com",
+            projectId: "shopping-app-3ecb4",
+            storageBucket: "shopping-app-3ecb4.firebasestorage.app",
+            messagingSenderId: "474945402052",
+            appId: "1:474945402052:web:490547761774659d334591"
+        };
+
+        // Firebase初期化
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
+
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Lucide Iconsの代替としてSVGアイコンを使用
+        // SVGアイコン
         const ShoppingCart = ({ size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 <circle cx="9" cy="21" r="1"></circle>
@@ -56,6 +78,15 @@
             </svg>
         );
 
+        const SyncIcon = ({ size = 24, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+                <path d="M21.5 2v6h-6"></path>
+                <path d="M2.5 22v-6h6"></path>
+                <path d="M2 11.5a10 10 0 0 1 18.8-4.3"></path>
+                <path d="M22 12.5a10 10 0 0 1-18.8 4.2"></path>
+            </svg>
+        );
+
         function ShoppingApp() {
             const [items, setItems] = useState([]);
             const [currentItem, setCurrentItem] = useState({
@@ -65,25 +96,47 @@
             const [storeName, setStoreName] = useState('');
             const [storePrice, setStorePrice] = useState('');
             const [storeUrl, setStoreUrl] = useState('');
+            const [syncStatus, setSyncStatus] = useState('読み込み中...');
 
-            // アプリ起動時にデータを読み込む
+            // Firestoreからリアルタイムでデータを読み込む
             useEffect(() => {
-                const savedData = localStorage.getItem('shopping-items');
-                if (savedData) {
-                    try {
-                        setItems(JSON.parse(savedData));
-                    } catch (error) {
-                        console.log('データ読み込みエラー');
-                    }
-                }
+                const unsubscribe = db.collection('shopping-items').doc('myItems')
+                    .onSnapshot((doc) => {
+                        if (doc.exists) {
+                            const data = doc.data();
+                            setItems(data.items || []);
+                        }
+                        setSyncStatus('同期済み ✓');
+                    }, (error) => {
+                        console.error('Firestore読み込みエラー:', error);
+                        setSyncStatus('同期エラー ✗');
+                        // エラー時はlocalStorageから読み込み
+                        const savedData = localStorage.getItem('shopping-items');
+                        if (savedData) {
+                            try { setItems(JSON.parse(savedData)); } catch (e) {}
+                        }
+                    });
+
+                return () => unsubscribe();
             }, []);
 
-            // データが変更されたら自動保存
-            useEffect(() => {
-                if (items.length > 0) {
-                    localStorage.setItem('shopping-items', JSON.stringify(items));
+            // Firestoreにデータを保存する関数
+            const saveToFirestore = async (newItems) => {
+                setSyncStatus('保存中...');
+                try {
+                    await db.collection('shopping-items').doc('myItems').set({
+                        items: newItems,
+                        updatedAt: new Date().toISOString()
+                    });
+                    // バックアップとしてlocalStorageにも保存
+                    localStorage.setItem('shopping-items', JSON.stringify(newItems));
+                    setSyncStatus('同期済み ✓');
+                } catch (error) {
+                    console.error('Firestore保存エラー:', error);
+                    setSyncStatus('保存エラー ✗');
+                    localStorage.setItem('shopping-items', JSON.stringify(newItems));
                 }
-            }, [items]);
+            };
 
             const addStore = () => {
                 if (storeName && storePrice) {
@@ -108,19 +161,23 @@
 
             const saveItem = () => {
                 if (currentItem.name && currentItem.stores.length > 0) {
-                    setItems([...items, currentItem]);
+                    const newItems = [...items, currentItem];
+                    setItems(newItems);
+                    saveToFirestore(newItems);
                     setCurrentItem({ name: '', stores: [] });
                 }
             };
 
             const deleteItem = (index) => {
-                setItems(items.filter((_, i) => i !== index));
+                const newItems = items.filter((_, i) => i !== index);
+                setItems(newItems);
+                saveToFirestore(newItems);
             };
 
             const clearAllData = () => {
                 if (window.confirm('すべてのデータを削除してもよろしいですか?')) {
-                    localStorage.removeItem('shopping-items');
                     setItems([]);
+                    saveToFirestore([]);
                     alert('すべてのデータを削除しました');
                 }
             };
@@ -140,14 +197,20 @@
                                     <ShoppingCart size={32} className="text-indigo-600" />
                                     <h1 className="text-3xl font-bold text-gray-800">買い物</h1>
                                 </div>
-                                {items.length > 0 && (
-                                    <button
-                                        onClick={clearAllData}
-                                        className="text-sm text-red-600 hover:text-red-800 underline"
-                                    >
-                                        全削除
-                                    </button>
-                                )}
+                                <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-1 text-sm text-gray-500">
+                                        <SyncIcon size={14} />
+                                        <span>{syncStatus}</span>
+                                    </div>
+                                    {items.length > 0 && (
+                                        <button
+                                            onClick={clearAllData}
+                                            className="text-sm text-red-600 hover:text-red-800 underline"
+                                        >
+                                            全削除
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="space-y-4">
